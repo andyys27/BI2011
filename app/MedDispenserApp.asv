@@ -253,19 +253,8 @@ classdef MedDispenserApp < matlab.apps.AppBase
             end
         end
 
-        function stopCamera(app)
-            try
-                if ~isempty(app.CamTimer) && strcmp(app.CamTimer.Running, 'on')
-                    stop(app.CamTimer);
-                end
-                app.SC_SendLabel.Text = 'Optical Scanning System: HALTED. Sensor in standby.';
-            catch ME
-                app.SC_SendLabel.Text = sprintf('Sensor Halt Error: %s', ME.message);
-            end
-        end
-
         function BtnLogoutPushed(app, ~)
-            app.stopCamera();
+            stopCamera(app);
             showScreen(app, 'login');
         end
 
@@ -275,7 +264,7 @@ classdef MedDispenserApp < matlab.apps.AppBase
         function BtnScanLoadPushed(app, ~),      showScreen(app,'scan');  end
         function EP_ReturnBtnPushed(app, ~),     showScreen(app,'dash');  end
         function VP_ReturnBtnPushed(app, ~),     showScreen(app,'dash');  end
-        function SC_ReturnBtnPushed(app, ~),     app.stopCamera(); showScreen(app,'dash'); end
+        function SC_ReturnBtnPushed(app, ~),     stopCamera(app); showScreen(app,'dash'); end
 
         %  ENTER PATIENT 
         function EP_PrescDDValueChanged(app, ~)
@@ -310,9 +299,8 @@ classdef MedDispenserApp < matlab.apps.AppBase
             id    = strtrim(app.EP_IDField.Value);
             date  = strtrim(app.EP_DateField.Value);
             
-            if isempty(name) || ...
-               isempty(id) || ...
-               isempty(date)
+            % Corregido el quiebre de línea ilegal que causaba error de compilación
+            if isempty(name) || isempty(id) || isempty(date)
                 setStatus(app, app.EP_StatusLabel, 'Error: Name, ID and Date are mandatory fields.', 'err');
                 return;
             end
@@ -431,7 +419,15 @@ classdef MedDispenserApp < matlab.apps.AppBase
         % Button pushed function: SC_StopBtn
         % Button pushed function: SC_StopBtn
         function SC_StopBtnPushed(app, ~)
-            stopCamera(app);
+            try
+                % Apagar el timer para que deje de consumir recursos de la cámara
+                if ~isempty(app.CamTimer) && strcmp(app.CamTimer.Running, 'on')
+                    stop(app.CamTimer);
+                end
+                app.SC_SendLabel.Text = 'Optical Scanning System: HALTED. Sensor in standby.';
+            catch ME
+                app.SC_SendLabel.Text = sprintf('Sensor Halt Error: %s', ME.message);
+            end
         end
 
         function cameraTick(app)
@@ -514,7 +510,7 @@ classdef MedDispenserApp < matlab.apps.AppBase
                 cmd = sprintf('LOAD_%s', upper(strtrim(barcodeText)));
             end
         end
-
+        
         function sendSerialCommand(app, cmd)
             % Verificar si el objeto serial es válido, si no, lanzar Auto-Recovery
             if isempty(app.SerialObj) || ...

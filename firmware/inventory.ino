@@ -26,7 +26,7 @@ void setup() {
 
   delay(2000);
 
-  actualizarPantalla();
+  refreshScreen();
 }
 
 void loop() {
@@ -99,7 +99,7 @@ void refreshScreen() {
   else if (missingInventory) {
 
     lcd.setCursor(0, 0);
-    lcd.print("MISSING INVENTORY");
+    lcd.print("LOW INVENTORY");
 
     lcd.setCursor(0, 1);
     lcd.print("INVENTORY");

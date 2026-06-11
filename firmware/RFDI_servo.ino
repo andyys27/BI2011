@@ -18,14 +18,14 @@
 #define TIME_DISPENSE 1200  // ms CHECK LATER
 
 // Pause between cycles
-#define PAUSE_CICLE     2000  // ms
+#define PAUSE_CYCLE     2000  // ms
 
 // Chronometer to prevent multiple reads
 unsigned long chronometerCooldown = 0; 
 
 struct Card {
   uint8_t uid[7];   // UID 
-  uint8_t lenght;   // Real lenght of the UID
+  uint8_t length;   // Real length of the UID
   uint8_t servo;    // Assigned servo (1 or 2)
 };
 
@@ -54,7 +54,7 @@ void printUID(uint8_t* uid, uint8_t length) {
 // Search for the UID in the list of authorized cards
 int searchCard(uint8_t* uid, uint8_t length) {
   for (uint8_t i = 0; i < NUM_CARDS; i++) {
-    if (length != cardsAuthorized[i].lenght) continue;
+    if (length != cardsAuthorized[i].length) continue;
 
     bool coincide = true;
     for (uint8_t j = 0; j < length; j++) {
@@ -116,7 +116,7 @@ void setup() {
 }
 
 void loop() {
-  if (millis() - chronometerCooldown < PAUSE_CICLE) {
+  if (millis() - chronometerCooldown < PAUSE_CYCLE) {
     return; 
   }
 
