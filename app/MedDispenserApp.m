@@ -1,10 +1,9 @@
 classdef MedDispenserApp < matlab.apps.AppBase
-
-    %  UI COMPONENTS 
+    %  UI COMPONENTS
     properties (Access = public)
         UIFigure          matlab.ui.Figure
 
-        %  LOGIN SCREEN 
+        %  LOGIN SCREEN
         LoginPanel        matlab.ui.container.Panel
         LogoImage         matlab.ui.control.Image
         AppTitleLabel     matlab.ui.control.Label
@@ -15,61 +14,22 @@ classdef MedDispenserApp < matlab.apps.AppBase
         PassField         matlab.ui.control.EditField
         LoginButton       matlab.ui.control.Button
         LoginErrorLabel   matlab.ui.control.Label
-        SdgLabel          matlab.ui.control.Label
 
-        %  MAIN DASHBOARD 
+        %  MAIN DASHBOARD
         DashPanel         matlab.ui.container.Panel
         WelcomeLabel      matlab.ui.control.Label
-        BtnEnterPatient   matlab.ui.control.Button
-        BtnViewPatient    matlab.ui.control.Button
         BtnScanLoad       matlab.ui.control.Button
         BtnLogout         matlab.ui.control.Button
         SerialStatusLabel matlab.ui.control.Label
-        
-        % Extra Mile: Live Edge Telemetry Panel
+
+        % Live Edge Telemetry Panel
         InventoryPanel    matlab.ui.container.Panel
         StockTitleLabel   matlab.ui.control.Label
         StockALabel       matlab.ui.control.Label
         StockBLabel       matlab.ui.control.Label
         LastActionLabel   matlab.ui.control.Label
 
-        %  ENTER PATIENT PANEL 
-        EnterPanel        matlab.ui.container.Panel
-        EP_Title          matlab.ui.control.Label
-        EP_NameLbl        matlab.ui.control.Label
-        EP_NameField      matlab.ui.control.EditField
-        EP_IDLbl          matlab.ui.control.Label
-        EP_IDField        matlab.ui.control.EditField
-        EP_DateLbl        matlab.ui.control.Label
-        EP_DateField      matlab.ui.control.EditField
-        EP_StatusLbl      matlab.ui.control.Label
-        EP_StatusDD       matlab.ui.control.DropDown
-        EP_PrescLbl       matlab.ui.control.Label
-        EP_PrescDD        matlab.ui.control.DropDown
-        EP_SchedGroup     matlab.ui.container.TabGroup
-        EP_MedATab        matlab.ui.container.Tab
-        EP_MedBTab        matlab.ui.container.Tab
-        EP_MedAChecks     
-        EP_MedBChecks     
-        EP_SaveSchedA     matlab.ui.control.Button
-        EP_SaveSchedB     matlab.ui.control.Button
-        EP_FilenameLbl    matlab.ui.control.Label
-        EP_FilenameField  matlab.ui.control.EditField
-        EP_SaveInfoBtn    matlab.ui.control.Button
-        EP_SaveFileBtn    matlab.ui.control.Button
-        EP_ReturnBtn      matlab.ui.control.Button
-        EP_StatusLabel    matlab.ui.control.Label
-
-        %  VIEW PATIENT PANEL 
-        ViewPanel         matlab.ui.container.Panel
-        VP_Title          matlab.ui.control.Label
-        VP_LoadFileBtn    matlab.ui.control.Button
-        VP_ListLbl        matlab.ui.control.Label
-        VP_ListBox        matlab.ui.control.ListBox
-        VP_InfoLabel      matlab.ui.control.Label
-        VP_ReturnBtn      matlab.ui.control.Button
-
-        %  SCAN & LOAD PANEL 
+        %  SCAN & LOAD PANEL
         ScanPanel         matlab.ui.container.Panel
         SC_Title          matlab.ui.control.Label
         SC_CamLabel       matlab.ui.control.Label
@@ -78,71 +38,67 @@ classdef MedDispenserApp < matlab.apps.AppBase
         SC_StopBtn        matlab.ui.control.Button
         SC_ComLbl         matlab.ui.control.Label
         SC_ComField       matlab.ui.control.EditField
+        SC_RefreshBtn     matlab.ui.control.Button
         SC_ConnectBtn     matlab.ui.control.Button
         SC_DisconnectBtn  matlab.ui.control.Button
         SC_BarcodeLabel   matlab.ui.control.Label
         SC_CommandLabel   matlab.ui.control.Label
         SC_SendLabel      matlab.ui.control.Label
         SC_ReturnBtn      matlab.ui.control.Button
-        SC_RecoveryBtn    matlab.ui.control.Button % Recovery trigger
+        SC_RecoveryBtn    matlab.ui.control.Button
     end
 
-    %  PRIVATE STATE 
+    %  PRIVATE STATE
     properties (Access = private)
-        PatientDB = struct( ...
-            'Name',         {}, ...
-            'ID',           {}, ...
-            'AdmissionDate',{}, ...
-            'Status',       {}, ...
-            'Prescription', {}, ...
-            'MedA',         {}, ...
-            'MedB',         {});
-        MedA_Selected = {}   
-        MedB_Selected = {}   
-        CurrentUser   = ''   
+        CurrentUser   = ''
         LastUsedPort  = ''
 
-        SerialObj = []       
-        CamObj    = []       
-        CamTimer  = []       
-        
-        % Mock database for secure profiles authorization matrix
+        SerialObj = []
+        CamObj    = []
+        CamTimer  = []
+
+        % Mock authorization matrix (demo only, pin = 1234)
         AuthMatrix = struct(...
-            'doctor', '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', ... % '1234' mockup hash
+            'doctor', '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', ...
             'nurse',  '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', ...
             'admin',  '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918');
+
+        AudioPlayerObj = []
     end
 
-    %  CALLBACKS AND ENGINE LOGIC 
+    %  CALLBACKS AND ENGINE LOGIC
     methods (Access = private)
 
-        %  STARTUP 
+        %  STARTUP
         function startupFcn(app)
             showScreen(app, 'login');
+
+            try
+                [y, fs] = audioread('mi_tren_cuidalo.mp3'); 
+                app.AudioPlayerObj = audioplayer(y, fs);
+            catch ME
+                disp(['Aviso: No se pudo cargar el audio: ', ME.message]);
+            end
         end
 
-        %  SCREEN ROUTER 
+        %  SCREEN ROUTER
         function showScreen(app, screen)
-            panels = {app.LoginPanel, app.DashPanel, app.EnterPanel, ...
-                      app.ViewPanel,  app.ScanPanel};
+            panels = {app.LoginPanel, app.DashPanel, app.ScanPanel};
             for k = 1:numel(panels)
                 panels{k}.Visible = 'off';
             end
             switch screen
-                case 'login',   app.LoginPanel.Visible  = 'on';
-                case 'dash',    app.DashPanel.Visible   = 'on';  refreshDash(app);
-                case 'enter',   app.EnterPanel.Visible  = 'on';
-                case 'view',    app.ViewPanel.Visible   = 'on';
-                case 'scan',    app.ScanPanel.Visible   = 'on';  syncScanInterface(app);
+                case 'login', app.LoginPanel.Visible = 'on';
+                case 'dash',  app.DashPanel.Visible  = 'on'; refreshDash(app);
+                case 'scan',  app.ScanPanel.Visible  = 'on'; syncScanInterface(app);
             end
         end
 
-        %  SECURE AUTHENTICATION PROFILE 
+        %  AUTHENTICATION
         function LoginButtonPushed(app, ~)
             user = strtrim(app.UserField.Value);
             pass = app.PassField.Value;
-            
-            % Extra Mile: Secure structural simulation validation
+
             if isfield(app.AuthMatrix, user) && strcmp(pass, '1234')
                 app.CurrentUser = user;
                 app.LoginErrorLabel.Visible = 'off';
@@ -159,71 +115,74 @@ classdef MedDispenserApp < matlab.apps.AppBase
             LoginButtonPushed(app, []);
         end
 
-        %  DASHBOARD MONITORING 
+        %  DASHBOARD MONITORING
         function refreshDash(app)
             app.WelcomeLabel.Text = sprintf('User Session: %s', upper(app.CurrentUser));
             if isempty(app.SerialObj) || ~isvalid(app.SerialObj)
-                app.SerialStatusLabel.Text            = 'STATUS: Edge Peripheral Disconnected';
-                app.SerialStatusLabel.FontColor       = [0.70 0.20 0.20];
+                app.SerialStatusLabel.Text      = 'STATUS: Edge Peripheral Disconnected';
+                app.SerialStatusLabel.FontColor = [0.70 0.20 0.20];
             else
-                app.SerialStatusLabel.Text            = sprintf('STATUS: Online Serial Link [%s]', app.LastUsedPort);
-                app.SerialStatusLabel.FontColor       = [0.12 0.55 0.30];
+                app.SerialStatusLabel.Text      = sprintf('STATUS: Online Serial Link [%s]', app.LastUsedPort);
+                app.SerialStatusLabel.FontColor = [0.12 0.55 0.30];
             end
         end
-        
+
         function syncScanInterface(app)
             if isempty(app.LastUsedPort)
                 availablePorts = serialportlist("available");
                 if ~isempty(availablePorts)
                     app.LastUsedPort = availablePorts{1}; % Toma el primer puerto activo detectado
-                else
-                    app.LastUsedPort = '/dev/ttyUSB0'; 
                 end
             end
-            app.SC_ComField.Value = app.LastUsedPort; 
+            if ~isempty(app.LastUsedPort)
+                app.SC_ComField.Value = app.LastUsedPort;
+            end
         end
 
-        %  ASYNC SERIAL CALLBACK & BIDIRECTIONAL SYNC 
-        % ASYNC SERIAL CALLBACK & BIDIRECTIONAL SYNC
+        %  ASYNC SERIAL CALLBACK & BIDIRECTIONAL SYNC
         function serialDataAvailable(app, src, ~)
             try
-                if src.NumBytesAvailable > 0
-                    rawString = strtrim(readline(src));
-
-                    % Mostrar en la bitácora de escaneo lo que va llegando en tiempo real
-                    app.SC_SendLabel.Text = sprintf('Wired Rx [%s] -> %s', char(datetime('now','Format','HH:mm:ss')), rawString);
+                if src.NumBytesAvailable > 0 
+                    rawString = strtrim(readline(src)); 
+                    app.SC_SendLabel.Text = sprintf('Wired Rx [%s] -> %s', char(datetime('now','Format','HH:mm:ss')), rawString); 
                     
+                    if contains(rawString, 'RFID') || contains(rawString, 'STOCK_UPDATE:')
+                        if ~isempty(app.AudioPlayerObj)
+                            stop(app.AudioPlayerObj); % Reinicio forzado por hardware
+                            play(app.AudioPlayerObj);
+                        end
+                    end
+
                     % Parser del protocolo del ESP32
-                    if contains(rawString, 'STOCK_UPDATE:')
-                        dataPayload = extractAfter(rawString, 'STOCK_UPDATE:');
-                        % Tu regex es completamente compatible con "MED_A=X,MED_B=Y"
-                        tokens = regexp(dataPayload, 'MED_A\s*=\s*(?<medA>\d+),\s*MED_B\s*=\s*(?<medB>\d+)', 'names');
-                        if ~isempty(tokens)
-                            app.StockALabel.Text = sprintf('Compartment A (Med A): %s Units Loaded', tokens.medA);
-                            app.StockBLabel.Text = sprintf('Compartment B (Med B): %s Units Loaded', tokens.medB);
+                    if contains(rawString, 'STOCK_UPDATE:') 
+                        dataPayload = extractAfter(rawString, 'STOCK_UPDATE:'); 
+                        tokens = regexp(dataPayload, 'MED_A\s*=\s*(?<medA>\d+),\s*MED_B\s*=\s*(?<medB>\d+)', 'names'); 
+                        if ~isempty(tokens) 
+                            app.StockALabel.Text = sprintf('Compartment A (Med A): %s Units Loaded', tokens.medA); 
+                            app.StockBLabel.Text = sprintf('Compartment B (Med B): %s Units Loaded', tokens.medB); 
                             app.LastActionLabel.Text = sprintf('Telemetry Refreshed: %s', char(datetime('now','Format','HH:mm:ss')));
                         end
-                    elseif contains(rawString, 'ACK:')
-                        app.LastActionLabel.Text = sprintf('Edge Response Received: %s', extractAfter(rawString, 'ACK:'));
-                    end
+                    elseif contains(rawString, 'ACK:') 
+                        app.LastActionLabel.Text = sprintf('Edge Response Received: %s', extractAfter(rawString, 'ACK:')); 
+                    end 
                 end
             catch ME
-                app.LastActionLabel.Text = sprintf('Sync Telemetry Interrupted: %s', ME.message);
+                app.LastActionLabel.Text = sprintf('Sync Telemetry Interrupted: %s', ME.message); 
                 app.SC_SendLabel.Text = sprintf('Rx Error: %s', ME.message);
             end
         end
 
-        % ERROR-RECOVERY PROTOCOLS 
+        %  ERROR-RECOVERY PROTOCOLS
         function executeErrorRecovery(app)
             app.SC_SendLabel.Text = 'Executing system hardware pipeline recovery...';
             drawnow;
-            
+
             % Step 1: Safe destruction of collapsed handles
             if ~isempty(app.SerialObj)
                 try delete(app.SerialObj); catch; end
                 app.SerialObj = [];
             end
-            
+
             % Step 2: Query system peripheral bus map
             availablePorts = serialportlist("available");
             if isempty(availablePorts)
@@ -231,16 +190,15 @@ classdef MedDispenserApp < matlab.apps.AppBase
                 uialert(app.UIFigure, 'Please check the physical USB wired link interface on the Edge Microcontroller.', 'Hardware Missing');
                 return;
             end
-            
+
             % Step 3: Attempt connection targeting last functional port parameters
             try
-                targetPort = '';
                 if any(strcmp(availablePorts, app.LastUsedPort))
                     targetPort = app.LastUsedPort;
                 else
                     targetPort = availablePorts{1}; % Default fallback
                 end
-                
+
                 app.SerialObj = serialport(targetPort, 115200, 'Timeout', 2);
                 configureTerminator(app.SerialObj, 'LF');
                 configureCallback(app.SerialObj, "terminator", @app.serialDataAvailable);
@@ -253,12 +211,28 @@ classdef MedDispenserApp < matlab.apps.AppBase
             end
         end
 
+        %  CAMERA LIFECYCLE
         function stopCamera(app)
             try
-                if ~isempty(app.CamTimer) && strcmp(app.CamTimer.Running, 'on')
-                    stop(app.CamTimer);
+                if ~isempty(app.CamTimer)
+                    if isvalid(app.CamTimer) && strcmp(app.CamTimer.Running, 'on')
+                        stop(app.CamTimer);
+                    end
+                    if isvalid(app.CamTimer)
+                        delete(app.CamTimer);
+                    end
+                    app.CamTimer = [];
                 end
-                app.SC_SendLabel.Text = 'Optical Scanning System: HALTED. Sensor in standby.';
+
+                if ~isempty(app.CamObj)
+                    app.CamObj = []; % Releases the webcam handle
+                end
+
+                cla(app.SC_Axes);
+                app.SC_CamLabel.Text  = 'Status: Optical Hardware Idle';
+                app.SC_SendLabel.Text = 'Optical Scanning System: HALTED. Sensor released.';
+                app.SC_StartBtn.Enable = 'on';
+                app.SC_StopBtn.Enable  = 'off';
             catch ME
                 app.SC_SendLabel.Text = sprintf('Sensor Halt Error: %s', ME.message);
             end
@@ -270,107 +244,25 @@ classdef MedDispenserApp < matlab.apps.AppBase
         end
 
         % Router Navigation Handles
-        function BtnEnterPatientPushed(app, ~),  showScreen(app,'enter'); end
-        function BtnViewPatientPushed(app, ~),   showScreen(app,'view');  end
-        function BtnScanLoadPushed(app, ~),      showScreen(app,'scan');  end
-        function EP_ReturnBtnPushed(app, ~),     showScreen(app,'dash');  end
-        function VP_ReturnBtnPushed(app, ~),     showScreen(app,'dash');  end
-        function SC_ReturnBtnPushed(app, ~),     app.stopCamera(); showScreen(app,'dash'); end
+        function BtnScanLoadPushed(app, ~), showScreen(app,'scan'); end
+        function SC_ReturnBtnPushed(app, ~), app.stopCamera(); showScreen(app,'dash'); end
 
-        %  ENTER PATIENT 
-        function EP_PrescDDValueChanged(app, ~)
-            if strcmp(app.EP_PrescDD.Value, 'Yes')
-                app.EP_SchedGroup.Visible = 'on';
-            else
-                app.EP_SchedGroup.Visible = 'off';
-            end
-        end
-
-        function EP_SaveSchedAPushed(app, ~)
-            app.MedA_Selected = getCheckedTimes(app, app.EP_MedAChecks);
-            if isempty(app.MedA_Selected)
-                setStatus(app, app.EP_StatusLabel, 'Notice: No times selected for Med A.', 'warn');
-            else
-                setStatus(app, app.EP_StatusLabel, sprintf('Confirmed: Med A schedule cached locally (%s)', strjoin(app.MedA_Selected,', ')), 'ok');
-            end
-        end
-
-        % Local DB Archival methods
-        function EP_SaveSchedBPushed(app, ~)
-            app.MedB_Selected = getCheckedTimes(app, app.EP_MedBChecks);
-            if isempty(app.MedB_Selected)
-                setStatus(app, app.EP_StatusLabel, 'Notice: No times selected for Med B.', 'warn');
-            else
-                setStatus(app, app.EP_StatusLabel, sprintf('Confirmed: Med B schedule cached locally (%s)', strjoin(app.MedB_Selected,', ')), 'ok');
-            end
-        end
-
-        function EP_SaveInfoBtnPushed(app, ~)
-            name  = strtrim(app.EP_NameField.Value);
-            id    = strtrim(app.EP_IDField.Value);
-            date  = strtrim(app.EP_DateField.Value);
-            
-            if isempty(name) || ...
-               isempty(id) || ...
-               isempty(date)
-                setStatus(app, app.EP_StatusLabel, 'Error: Name, ID and Date are mandatory fields.', 'err');
-                return;
-            end
-
-            newP.Name          = name;
-            newP.ID            = id;
-            newP.AdmissionDate = date;
-            newP.Status        = app.EP_StatusDD.Value;
-            newP.Prescription  = app.EP_PrescDD.Value;
-            newP.MedA          = app.MedA_Selected;
-            newP.MedB          = app.MedB_Selected;
-            app.PatientDB(end+1) = newP;
-            setStatus(app, app.EP_StatusLabel, sprintf('Success: Patient %s registered locally.', id), 'ok');
-
-            app.EP_NameField.Value  = ''; app.EP_IDField.Value = ''; app.EP_DateField.Value = '';
-            app.EP_StatusDD.Value   = 'Admitted'; app.EP_PrescDD.Value    = 'No';
-            app.EP_SchedGroup.Visible = 'off'; app.MedA_Selected = {}; app.MedB_Selected = {};
-            clearAllChecks(app, app.EP_MedAChecks); clearAllChecks(app, app.EP_MedBChecks);
-        end
-
-        function EP_SaveFileBtnPushed(app, ~)
-            fname = strtrim(app.EP_FilenameField.Value);
-            if isempty(fname), setStatus(app, app.EP_StatusLabel, 'Error: Supply a valid filename.', 'err'); return; end
-            if isempty(app.PatientDB), setStatus(app, app.EP_StatusLabel, 'Notice: Database is empty.', 'warn'); return; end
-            PatientDB = app.PatientDB; %#ok<PROPLC>
-            save([fname '.mat'], 'PatientDB');
-            setStatus(app, app.EP_StatusLabel, sprintf('Success: Database stored local cache as "%s.mat"', fname), 'ok');
-        end
-
-        %  VIEW PATIENT 
-        function VP_LoadFileBtnPushed(app, ~)
-            [file, path] = uigetfile('*.mat', 'Select Patient Database File');
-            if isequal(file,0), return; end
-            loaded = load(fullfile(path,file));
-            if ~isfield(loaded,'PatientDB')
-                uialert(app.UIFigure,'The specified file does not contain a standard PatientDB object.','Format Error');
-                return
-            end
-            app.PatientDB = loaded.PatientDB;
-            items = arrayfun(@(p) sprintf('%s [%s]', string(p.Name), string(p.ID)), app.PatientDB, 'UniformOutput', false);
-            app.VP_ListBox.Items = items;
-            app.VP_InfoLabel.Text = sprintf('System: Loaded %d medical profiles.', numel(app.PatientDB));
-        end
-
-        function VP_ListBoxValueChanged(app, ~)
-            idx = find(strcmp(app.VP_ListBox.Items, app.VP_ListBox.Value));
-            if isempty(idx), return; end
-            p = app.PatientDB(idx);
-            medA = formatSchedule(p.MedA); medB = formatSchedule(p.MedB);
-            app.VP_InfoLabel.Text = sprintf( ...
-                "PATIENT RECORD DETAILED SUMMARY\n───────────────────────────────────\nName:    %s\nID:      %s\nDate:    %s\nStatus:  %s\n\nPrescription Status: %s\n\nMed A Time Slots:\n%s\n\nMed B Time Slots:\n%s", ...
-                string(p.Name), string(p.ID), string(p.AdmissionDate), string(p.Status), string(p.Prescription), medA, medB);
-        end
-
-        % =================================================================
-        %  SCAN & LOAD CORE OPERATIONS (REQ-SW-02 / REQ-SW-03)
-        % =================================================================
         
+        %  SCAN & LOAD CORE OPERATIONS 
+        % Button pushed function: SC_RefreshBtn
+        function SC_RefreshBtnPushed(app, ~)
+            ports = serialportlist("available");
+            if isempty(ports)
+                app.SC_SendLabel.Text = 'Port Scan: No serial ports detected. Check USB cable / driver (CP210x or CH340).';
+            else
+                app.SC_SendLabel.Text = sprintf('Port Scan: Available -> %s', strjoin(ports, ', '));
+                currentPort = strtrim(app.SC_ComField.Value);
+                if isempty(currentPort) || ~any(strcmp(ports, currentPort))
+                    app.SC_ComField.Value = ports{1};
+                end
+            end
+        end
+
         % Button pushed function: SC_ConnectBtn
         function SC_ConnectBtnPushed(app, ~)
             port = strtrim(app.SC_ComField.Value);
@@ -378,6 +270,23 @@ classdef MedDispenserApp < matlab.apps.AppBase
                 app.SC_SendLabel.Text = 'Error: State valid COM Port architecture.';
                 return;
             end
+
+            % Verifica que el puerto exista y este disponible antes de intentar abrirlo
+            available = serialportlist("available");
+            if ~any(strcmp(available, port))
+                if isempty(available)
+                    msg = sprintf(['Port "%s" not found. No serial ports are currently available.\n' ...
+                        'Check that the ESP32 is plugged in via USB and that the CP210x/CH340 ' ...
+                        'driver is installed, then press REFRESH PORTS.'], port);
+                else
+                    msg = sprintf(['Port "%s" not found or already in use by another program ' ...
+                        '(e.g. Arduino IDE Serial Monitor).\nAvailable ports: %s'], port, strjoin(available, ', '));
+                end
+                app.SC_SendLabel.Text = msg;
+                uialert(app.UIFigure, msg, 'Port Not Available');
+                return;
+            end
+
             try
                 if ~isempty(app.SerialObj) && isvalid(app.SerialObj)
                     configureCallback(app.SerialObj, "terminator", []);
@@ -395,40 +304,56 @@ classdef MedDispenserApp < matlab.apps.AppBase
                 refreshDash(app);
             catch ME
                 app.SC_SendLabel.Text = sprintf('Link Failure: %s', ME.message);
+                uialert(app.UIFigure, ME.message, 'Serial Connection Error');
             end
-        end 
+        end
+
+        % Button pushed function: SC_DisconnectBtn
+        function SC_DisconnectBtnPushed(app, ~)
+            if ~isempty(app.SerialObj) && isvalid(app.SerialObj)
+                configureCallback(app.SerialObj, "terminator", []);
+                delete(app.SerialObj);
+                app.SerialObj = [];
+                app.SC_SendLabel.Text = 'Wired Link: Serial channel disconnected.';
+            else
+                app.SC_SendLabel.Text = 'Wired Link: No active serial channel to disconnect.';
+            end
+            refreshDash(app);
+        end
 
         % Button pushed function: SC_StartBtn
         function SC_StartBtnPushed(app, ~)
-            try 
+            try
                 % 1. Verificar e inicializar la webcam de la PC si no se ha creado
-                if isempty(app.CamObj) 
-                    app.SC_SendLabel.Text = 'Camera: Initializing local optical sensor... Please wait.'; 
-                    drawnow; 
-                    app.CamObj = webcam(1); % Abre la cámara por defecto 
-                end 
+                if isempty(app.CamObj)
+                    app.SC_SendLabel.Text = 'Camera: Initializing local optical sensor... Please wait.';
+                    drawnow;
+                    app.CamObj = webcam(1); % Abre la camara por defecto
+                end
 
-                % Inicialización del Timer si no existe
-                if isempty(app.CamTimer)
+                % Inicializacion del Timer si no existe
+                if isempty(app.CamTimer) || ~isvalid(app.CamTimer)
                     app.CamTimer = timer('ExecutionMode', 'fixedRate', ...
                                          'Period', 0.2, ... % 5Hz (Cada 200ms)
                                          'TimerFcn', @(~,~) cameraTick(app));
                 end
 
-                % 2. Arrancar el Timer cíclico para tomar snapshots
-                if strcmp(app.CamTimer.Running, 'off') 
-                    start(app.CamTimer); 
-                    app.SC_SendLabel.Text = 'Optical Scanning System: ACTIVE (5Hz real-time refresh)'; 
-                else 
-                    app.SC_SendLabel.Text = 'Optical Scanning System: Already active and listening.'; 
+                % 2. Arrancar el Timer ciclico para tomar snapshots
+                if strcmp(app.CamTimer.Running, 'off')
+                    start(app.CamTimer);
+                    app.SC_CamLabel.Text  = 'Status: Optical Hardware Active';
+                    app.SC_SendLabel.Text = 'Optical Scanning System: ACTIVE (5Hz real-time refresh)';
+                    app.SC_StartBtn.Enable = 'off';
+                    app.SC_StopBtn.Enable  = 'on';
+                else
+                    app.SC_SendLabel.Text = 'Optical Scanning System: Already active and listening.';
                 end
 
-            catch ME 
-                app.SC_SendLabel.Text = sprintf('Camera initialization failed: %s. Check USB/Permissions.', ME.message); 
-            end 
+            catch ME
+                app.SC_SendLabel.Text = sprintf('Camera initialization failed: %s. Check USB/Permissions.', ME.message);
+            end
         end
 
-        % Button pushed function: SC_StopBtn
         % Button pushed function: SC_StopBtn
         function SC_StopBtnPushed(app, ~)
             stopCamera(app);
@@ -436,10 +361,10 @@ classdef MedDispenserApp < matlab.apps.AppBase
 
         function cameraTick(app)
             try
-                % 1. Capturar el frame actual de la cámara
+                % 1. Capturar el frame actual de la camara
                 frame = snapshot(app.CamObj);
-                
-                % 2. Renderizado ultra eficiente en los ejes de App Designer
+
+                % 2. Renderizado eficiente en los ejes de App Designer
                 hImg = findobj(app.SC_Axes, 'Type', 'image');
                 if isempty(hImg)
                     imshow(frame, 'Parent', app.SC_Axes);
@@ -447,9 +372,9 @@ classdef MedDispenserApp < matlab.apps.AppBase
                     hImg.CData = frame;
                 end
 
-                drawnow; % Fuerza actualización visual inmediata
+                drawnow; % Fuerza actualizacion visual inmediata
 
-                % 3. Procesamiento y decodificación del código de barras
+                % 3. Procesamiento y decodificacion del codigo de barras
                 barcodeText = '';
                 try
                     [barcodeText, ~] = readBarcode(frame); % Toolbox de procesamiento
@@ -457,41 +382,34 @@ classdef MedDispenserApp < matlab.apps.AppBase
                     try
                         barcodeText = qrcode_decode(rgb2gray(frame));
                     catch
-                        % No se detectó código en este ciclo
+                        % No se detecto codigo en este ciclo
                     end
                 end
 
                 % 4. CONTROL DE DELAY / COOLDOWN (Previene lecturas duplicadas continuas)
-                % CORRECCIÓN CRÍTICA: Validamos con strlength que REALMENTE tenga letras detectadas
                 if ~isempty(barcodeText) && strlength(string(barcodeText)) > 0
-                    
-                    % Recuperar el timestamp del último escaneo exitoso
+
                     lastScanTime = getappdata(app.UIFigure, 'LastScanTime');
-                    
-                    % Si es la primera vez que escanea, inicializamos en el pasado lejano
+
                     if isempty(lastScanTime)
-                        lastScanTime = datetime('now') - seconds(10); 
+                        lastScanTime = datetime('now') - seconds(10);
                     end
-                    
-                    % Calcular cuántos segundos han pasado desde la última carga exitosa
+
                     tiempoTranscurrido = seconds(datetime('now') - lastScanTime);
-                    
-                    % CONFIGURACIÓN DEL DELAY: 3.0 segundos de espera mínima entre cargas
+
+                    % CONFIGURACION DEL DELAY: 3.0 segundos de espera minima entre cargas
                     if tiempoTranscurrido >= 3.0
-                        
-                        % Guardar el momento exacto de este nuevo escaneo exitoso
+
                         setappdata(app.UIFigure, 'LastScanTime', datetime('now'));
-                        
-                        % Proceder con la actualización de etiquetas y envío Serial
+
                         app.SC_BarcodeLabel.Text = sprintf('Barcode Captured: %s', barcodeText);
                         cmd = barcodeToCommand(app, barcodeText);
                         app.SC_CommandLabel.Text = sprintf('Parsed Directive: %s', cmd);
-                        
-                        % Envía un único comando al ESP32
+
+                        % Envia un unico comando al ESP32
                         sendSerialCommand(app, cmd);
-                        
+
                     else
-                        % Retroalimentación visual: Avisa en pantalla cuántos segundos faltan
                         tiempoRestante = ceil(3.0 - tiempoTranscurrido);
                         app.SC_SendLabel.Text = sprintf('Scan Locked: Wait %d s to clear camera...', tiempoRestante);
                     end
@@ -516,46 +434,27 @@ classdef MedDispenserApp < matlab.apps.AppBase
         end
 
         function sendSerialCommand(app, cmd)
-            % Verificar si el objeto serial es válido, si no, lanzar Auto-Recovery
-            if isempty(app.SerialObj) || ...
-               ~isvalid(app.SerialObj)
-                app.SC_SendLabel.Text = 'Pipeline Error: Interface connection lost. Initializing automated recovery...';
-                executeErrorRecovery(app);
-                if isempty(app.SerialObj), return; end
+            if isempty(app.SerialObj) || ~isvalid(app.SerialObj) 
+                app.SC_SendLabel.Text = 'Pipeline Error: Interface connection lost. Initializing automated recovery...'; 
+                executeErrorRecovery(app); 
+                if isempty(app.SerialObj), return; end 
             end
             try
-                writeline(app.SerialObj, cmd);
-                % Envía LOAD_MED_1 o LOAD_MED_2 con terminador LF
-                app.SC_SendLabel.Text = sprintf('Wired Tx Success [%s] -> %s', char(datetime('now','Format','HH:mm:ss')), cmd);
+                writeline(app.SerialObj, cmd); 
+                app.SC_SendLabel.Text = sprintf('Wired Tx Success [%s] -> %s', char(datetime('now','Format','HH:mm:ss')), cmd); 
+                
+                if ~isempty(app.AudioPlayerObj)
+                    stop(app.AudioPlayerObj); % Detiene el sonido actual si seguía reproduciéndose
+                    play(app.AudioPlayerObj); % Lo inicia de inmediato sin retrasos
+                end
+                
             catch ME
-                app.SC_SendLabel.Text = sprintf('Transmission crash trapped: %s. Please hit Manual Recovery.', ME.message);
-            end
-        end
-
-        % TOOLBOX CONFIG HELPERS
-        function times = getCheckedTimes(~, checkboxes)
-            times = {};
-            for k = 1:numel(checkboxes)
-                if checkboxes{k}.Value, times{end+1} = checkboxes{k}.Text; end %#ok<AGROW>
-            end
-        end
-
-        function clearAllChecks(~, checkboxes)
-            for k = 1:numel(checkboxes), checkboxes{k}.Value = false; end
-        end
-
-        function setStatus(~, label, txt, kind)
-            label.Text = txt;
-            switch kind
-                case 'ok',   label.FontColor = [0.12 0.55 0.30];
-                case 'warn', label.FontColor = [0.75 0.45 0.00];
-                case 'err',  label.FontColor = [0.70 0.20 0.20];
-                otherwise,   label.FontColor = [0.25 0.25 0.25];
+                app.SC_SendLabel.Text = sprintf('Transmission crash trapped: %s. Please hit Manual Recovery.', ME.message); 
             end
         end
     end
 
-    % COMPONENT CREATION (GUI STYLING ENGINE) 
+    %  COMPONENT CREATION (GUI STYLING ENGINE)
     methods (Access = private)
 
         function createComponents(app)
@@ -590,7 +489,7 @@ classdef MedDispenserApp < matlab.apps.AppBase
 
             app.SubtitleLabel = uilabel(app.LoginPanel);
             app.SubtitleLabel.Text = 'Hospital Ward & Pharmacy Station Interface Module';
-            app.SubtitleLabel.FontSize = 12; app.SubtitleLabel.FontColor = [0.45 0.45 0.45];
+            app.SubtitleLabel.FontSize = 12; app.SubtitleLabel.FontColor = [0.20 0.20 0.20];
             app.SubtitleLabel.HorizontalAlignment = 'center';
             app.SubtitleLabel.Position = [140 335 500 25];
 
@@ -598,13 +497,15 @@ classdef MedDispenserApp < matlab.apps.AppBase
             loginCard.Position = [265 130 250 190]; loginCard.BackgroundColor = [0.97 0.98 0.99];
 
             app.UserLabel = uilabel(loginCard); app.UserLabel.Text = 'Operator ID';
-            app.UserLabel.FontSize = 11; app.UserLabel.FontWeight = 'bold'; app.UserLabel.Position = [20 138 100 22];
+            app.UserLabel.FontSize = 11; app.UserLabel.FontWeight = 'bold';
+            app.UserLabel.FontColor = [0.15 0.15 0.15]; app.UserLabel.Position = [20 138 100 22];
 
             app.UserField = uieditfield(loginCard,'text'); app.UserField.Position = [20 112 210 26];
             app.UserField.Placeholder = 'doctor / nurse / admin'; app.UserField.BackgroundColor = [1.00 1.00 1.00];
 
             app.PassLabel = uilabel(loginCard); app.PassLabel.Text = 'Secure Access Pin';
-            app.PassLabel.FontSize = 11; app.PassLabel.FontWeight = 'bold'; app.PassLabel.Position = [20 81 120 22];
+            app.PassLabel.FontSize = 11; app.PassLabel.FontWeight = 'bold';
+            app.PassLabel.FontColor = [0.15 0.15 0.15]; app.PassLabel.Position = [20 81 120 22];
 
             app.PassField = uieditfield(loginCard,'text'); app.PassField.Position = [20 55 210 26];
             app.PassField.Placeholder = 'Required password'; app.PassField.BackgroundColor = [1.00 1.00 1.00];
@@ -617,11 +518,7 @@ classdef MedDispenserApp < matlab.apps.AppBase
 
             app.LoginErrorLabel = uilabel(app.LoginPanel); app.LoginErrorLabel.Text = '';
             app.LoginErrorLabel.FontColor = [0.70 0.20 0.20]; app.LoginErrorLabel.HorizontalAlignment = 'center';
-            app.LoginErrorLabel.Position = [190 100 400 22]; app.LoginErrorLabel.Visible = 'off';
-
-            app.SdgLabel = uilabel(app.LoginPanel); app.SdgLabel.Text = 'UN SDG Goal 3: Good Health and Well-being Compliance Interface';
-            app.SdgLabel.FontColor = [0.55 0.55 0.55]; app.SdgLabel.FontSize = 10;
-            app.SdgLabel.HorizontalAlignment = 'center'; app.SdgLabel.Position = [190 30 400 22];
+            app.LoginErrorLabel.Position = [190 95 400 22]; app.LoginErrorLabel.Visible = 'off';
 
             %  DASHBOARD PANEL
             app.DashPanel = mkPanel(app.UIFigure, [0 0 W H], '');
@@ -639,172 +536,79 @@ classdef MedDispenserApp < matlab.apps.AppBase
             app.BtnLogout.FontColor = [0.70 0.20 0.20]; app.BtnLogout.FontWeight = 'bold';
             app.BtnLogout.ButtonPushedFcn = createCallbackFcn(app, @BtnLogoutPushed, true);
 
-            app.SerialStatusLabel = uilabel(app.DashPanel); app.SerialStatusLabel.Text = 'STATUS: Edge Peripheral Disconnected';
-            app.SerialStatusLabel.FontSize = 10; app.SerialStatusLabel.FontWeight = 'bold';
-            app.SerialStatusLabel.FontColor = [0.45 0.45 0.45]; app.SerialStatusLabel.Position = [25 475 350 18];
+            app.SerialStatusLabel = uilabel(app.DashPanel);
+            app.SerialStatusLabel.Text = 'STATUS: Edge Peripheral Disconnected';
+            app.SerialStatusLabel.FontSize = 11; app.SerialStatusLabel.FontWeight = 'bold';
+            app.SerialStatusLabel.FontColor = [0.15 0.15 0.15]; app.SerialStatusLabel.Position = [25 470 450 20];
 
-            % Extra Mile: Live Edge Telemetry Panel UI Placement
+            %  Inventory Scanner access card
+            scanCard = uipanel(app.DashPanel); scanCard.Position = [30 65 340 395];
+            scanCard.BackgroundColor = [0.97 0.98 0.99]; scanCard.BorderType = 'line';
+
+            scLbl = uilabel(scanCard); scLbl.Text = 'Inventory Scanner Module';
+            scLbl.FontSize = 15; scLbl.FontWeight = 'bold'; scLbl.FontColor = [0.12 0.45 0.74];
+            scLbl.Position = [20 345 300 30];
+
+            scDesc = uilabel(scanCard);
+            scDesc.Text = sprintf(['Open the camera scanner to read medication barcodes and ' ...
+                'automatically dispatch the matching reload command (LOAD_MED_1 or ' ...
+                'LOAD_MED_2) to the ESP32 dispenser over the serial link.\n\n' ...
+                'Make sure the controller link is established before scanning, so each ' ...
+                'successful scan updates the live stock telemetry shown on this dashboard.']);
+            scDesc.FontSize = 12; scDesc.FontColor = [0.25 0.25 0.25];
+            scDesc.WordWrap = 'on'; scDesc.Position = [20 70 300 260];
+
+            app.BtnScanLoad = uibutton(scanCard,'push'); app.BtnScanLoad.Text = 'OPEN SCANNER MODULE';
+            app.BtnScanLoad.Position = [20 20 300 36]; app.BtnScanLoad.FontWeight = 'bold';
+            app.BtnScanLoad.BackgroundColor = [0.12 0.45 0.74]; app.BtnScanLoad.FontColor = [1 1 1];
+            app.BtnScanLoad.ButtonPushedFcn = createCallbackFcn(app, @BtnScanLoadPushed, true);
+
+            %  Live Edge Telemetry Panel
             app.InventoryPanel = uipanel(app.DashPanel);
-            app.InventoryPanel.Position = [410 65 340 185];
+            app.InventoryPanel.Position = [410 65 340 395];
             app.InventoryPanel.BackgroundColor = [0.95 0.97 1.00];
             app.InventoryPanel.BorderType = 'line';
-            
+
             app.StockTitleLabel = uilabel(app.InventoryPanel);
-            app.StockTitleLabel.Text = 'EDGE NODE TELEMETRY LOGISTICS';
-            app.StockTitleLabel.FontWeight = 'bold'; app.StockTitleLabel.FontColor = [0.12 0.45 0.74];
-            app.StockTitleLabel.Position = [15 150 310 22];
-            
+            app.StockTitleLabel.Text = 'EDGE NODE TELEMETRY';
+            app.StockTitleLabel.FontSize = 14; app.StockTitleLabel.FontWeight = 'bold';
+            app.StockTitleLabel.FontColor = [0.12 0.45 0.74];
+            app.StockTitleLabel.Position = [20 345 300 30];
+
             app.StockALabel = uilabel(app.InventoryPanel);
             app.StockALabel.Text = 'Compartment A (Med A): Sync Pending...';
-            app.StockALabel.Position = [15 110 310 20]; app.StockALabel.FontSize = 11;
-            
+            app.StockALabel.FontSize = 13; app.StockALabel.FontColor = [0.15 0.15 0.15];
+            app.StockALabel.Position = [20 290 300 26];
+
             app.StockBLabel = uilabel(app.InventoryPanel);
             app.StockBLabel.Text = 'Compartment B (Med B): Sync Pending...';
-            app.StockBLabel.Position = [15 80 310 20]; app.StockBLabel.FontSize = 11;
-            
-            app.LastActionLabel = uilabel(app.InventoryPanel);
+            app.StockBLabel.FontSize = 13; app.StockBLabel.FontColor = [0.15 0.15 0.15];
+            app.StockBLabel.Position = [20 250 300 26];
+
+            logBox = uipanel(app.InventoryPanel); logBox.Title = 'Edge Pipeline Log';
+            logBox.Position = [20 30 300 200]; logBox.BackgroundColor = [1.00 1.00 1.00];
+            logBox.FontWeight = 'bold'; logBox.ForegroundColor = [0.20 0.20 0.20];
+
+            app.LastActionLabel = uilabel(logBox);
             app.LastActionLabel.Text = 'Edge Bus Pipeline Status: Idle';
-            app.LastActionLabel.Position = [15 25 310 40]; app.LastActionLabel.FontSize = 10;
-            app.LastActionLabel.FontColor = [0.4 0.4 0.4]; app.LastActionLabel.WordWrap = 'on';
-
-            % Action Modules Cards
-            cardData = { ...
-                'Patient Registration', 'Register clinical admission files and program specific drug time schedules.', @BtnEnterPatientPushed, [30  270 340 185]; ...
-                'Database Archives',    'Access, read and evaluate historical stored patient profiles.',               @BtnViewPatientPushed,  [410 270 340 185]; ...
-                'Scanner System Module', 'Initialize optical sensor array to capture and parse barcodes over serial links.', @BtnScanLoadPushed,   [30  65  340 185]};
-
-            for k = 1:3
-                card = uipanel(app.DashPanel); card.Position = cardData{k,4};
-                card.BackgroundColor = [0.97 0.98 0.99]; card.BorderType = 'line';
-
-                lbl = uilabel(card); lbl.Text = cardData{k,1}; lbl.FontSize = 13;
-                lbl.FontWeight = 'bold'; lbl.FontColor = [0.12 0.45 0.74]; lbl.Position = [15 140 310 30];
-
-                desc = uilabel(card); desc.Text = cardData{k,2}; desc.FontSize = 11;
-                desc.FontColor = [0.35 0.35 0.35]; desc.WordWrap = 'on'; desc.Position = [15 80 310 55];
-
-                btn = uibutton(card,'push'); btn.Text = 'ACCESS MODULE'; btn.Position = [15 20 310 34];
-                btn.FontWeight = 'bold'; btn.BackgroundColor = [1.00 1.00 1.00]; btn.FontColor = [0.12 0.45 0.74];
-                btn.ButtonPushedFcn = createCallbackFcn(app, cardData{k,3}, true);
-
-                switch k
-                    case 1, app.BtnEnterPatient = btn;
-                    case 2, app.BtnViewPatient = btn;
-                    case 3, app.BtnScanLoad = btn;
-                end
-            end
-
-            %  ENTER PATIENT PANEL
-            app.EnterPanel = mkPanel(app.UIFigure, [0 0 W H], 'Patient Intake Registry');
-
-            lx = 25; ly_top = 450; row = 40;
-            app.EP_Title = uilabel(app.EnterPanel); app.EP_Title.Text = 'Clinical Admission Form';
-            app.EP_Title.FontSize = 14; app.EP_Title.FontColor = [0.12 0.45 0.74]; app.EP_Title.Position = [lx ly_top+30 350 28];
-
-            fields = { ...
-                'Full Legal Name:', 'EP_NameLbl', 'EP_NameField'; ...
-                'National ID Reference:', 'EP_IDLbl', 'EP_IDField'; ...
-                'Admission Date Stamp:', 'EP_DateLbl', 'EP_DateField'};
-
-            for k = 1:3
-                y = ly_top - row*k;
-                lbl = uilabel(app.EnterPanel); lbl.Text = fields{k,1}; lbl.FontSize = 11;
-                lbl.FontWeight = 'bold'; lbl.Position = [lx y 150 22]; app.(fields{k,2}) = lbl;
-
-                fld = uieditfield(app.EnterPanel,'text'); fld.Position = [lx+160 y 180 24];
-                fld.BackgroundColor = [1.00 1.00 1.00]; app.(fields{k,3}) = fld;
-            end
-
-            y = ly_top - row*4;
-            app.EP_StatusLbl = uilabel(app.EnterPanel); app.EP_StatusLbl.Text = 'Clinical Discretion Status:';
-            app.EP_StatusLbl.FontSize = 11; app.EP_StatusLbl.FontWeight = 'bold'; app.EP_StatusLbl.Position = [lx y 150 22];
-
-            app.EP_StatusDD = uidropdown(app.EnterPanel); app.EP_StatusDD.Items = {'Admitted','Discharged','Transferred','Observation'};
-            app.EP_StatusDD.Value = 'Admitted'; app.EP_StatusDD.Position = [lx+160 y 180 24]; app.EP_StatusDD.BackgroundColor = [1.00 1.00 1.00];
-
-            y = ly_top - row*5;
-            app.EP_PrescLbl = uilabel(app.EnterPanel); app.EP_PrescLbl.Text = 'Prescription Active Order:';
-            app.EP_PrescLbl.FontSize = 11; app.EP_PrescLbl.FontWeight = 'bold'; app.EP_PrescLbl.Position = [lx y 150 22];
-
-            app.EP_PrescDD = uidropdown(app.EnterPanel); app.EP_PrescDD.Items = {'No','Yes'};
-            app.EP_PrescDD.Value = 'No'; app.EP_PrescDD.Position = [lx+160 y 180 24]; app.EP_PrescDD.BackgroundColor = [1.00 1.00 1.00];
-            app.EP_PrescDD.ValueChangedFcn = createCallbackFcn(app, @EP_PrescDDValueChanged, true);
-
-            app.EP_SaveInfoBtn = uibutton(app.EnterPanel,'push'); app.EP_SaveInfoBtn.Text = 'COMMIT RECORD LOCALLY';
-            app.EP_SaveInfoBtn.Position = [lx 100 315 36]; app.EP_SaveInfoBtn.BackgroundColor = [0.12 0.45 0.74];
-            app.EP_SaveInfoBtn.FontColor = [1 1 1]; app.EP_SaveInfoBtn.FontWeight = 'bold';
-            app.EP_SaveInfoBtn.ButtonPushedFcn = createCallbackFcn(app, @EP_SaveInfoBtnPushed, true);
-
-            app.EP_FilenameLbl = uilabel(app.EnterPanel); app.EP_FilenameLbl.Text = 'Filename Mapping:';
-            app.EP_FilenameLbl.FontSize = 11; app.EP_FilenameLbl.Position = [lx 55 120 22];
-
-            app.EP_FilenameField = uieditfield(app.EnterPanel,'text'); app.EP_FilenameField.Position = [lx+130 55 100 24];
-            app.EP_FilenameField.Placeholder = 'patients'; app.EP_FilenameField.BackgroundColor = [1.00 1.00 1.00];
-
-            app.EP_SaveFileBtn = uibutton(app.EnterPanel,'push'); app.EP_SaveFileBtn.Text = 'SAVE DATABASE';
-            app.EP_SaveFileBtn.Position = [lx+240 55 90 24]; app.EP_SaveFileBtn.BackgroundColor = [1.00 1.00 1.00];
-            app.EP_SaveFileBtn.ButtonPushedFcn = createCallbackFcn(app, @EP_SaveFileBtnPushed, true);
-
-            app.EP_StatusLabel = uilabel(app.EnterPanel); app.EP_StatusLabel.Text = '';
-            app.EP_StatusLabel.WordWrap = 'on'; app.EP_StatusLabel.FontSize = 10; app.EP_StatusLabel.Position = [lx 15 450 28];
-
-            app.EP_ReturnBtn = uibutton(app.EnterPanel,'push'); app.EP_ReturnBtn.Text = 'RETURN';
-            app.EP_ReturnBtn.Position = [W-120 15 100 28]; app.EP_ReturnBtn.BackgroundColor = [1.00 1.00 1.00];
-            app.EP_ReturnBtn.ButtonPushedFcn = createCallbackFcn(app, @EP_ReturnBtnPushed, true);
-
-            app.EP_SchedGroup = uitabgroup(app.EnterPanel); app.EP_SchedGroup.Position = [385 55 370 455]; app.EP_SchedGroup.Visible = 'off';
-
-            app.EP_MedATab = uitab(app.EP_SchedGroup); app.EP_MedATab.Title = 'Compartment A';
-            app.EP_MedATab.BackgroundColor = [1.00 1.00 1.00];
-            
-            app.EP_MedBTab = uitab(app.EP_SchedGroup); app.EP_MedBTab.Title = 'Compartment B';
-            app.EP_MedBTab.BackgroundColor = [1.00 1.00 1.00];
-
-            hours = 0:23;
-            app.EP_MedAChecks = buildHourCheckboxes(app, app.EP_MedATab, hours);
-            app.EP_MedBChecks = buildHourCheckboxes(app, app.EP_MedBTab, hours);
-
-            app.EP_SaveSchedA = uibutton(app.EP_MedATab,'push'); app.EP_SaveSchedA.Text = 'SAVE COMPARTMENT A TIMES';
-            app.EP_SaveSchedA.Position = [40 10 280 28]; app.EP_SaveSchedA.FontWeight = 'bold';
-            app.EP_SaveSchedA.ButtonPushedFcn = createCallbackFcn(app, @EP_SaveSchedAPushed, true);
-
-            app.EP_SaveSchedB = uibutton(app.EP_MedBTab,'push'); app.EP_SaveSchedB.Text = 'SAVE COMPARTMENT B TIMES';
-            app.EP_SaveSchedB.Position = [40 10 280 28]; app.EP_SaveSchedB.FontWeight = 'bold';
-            app.EP_SaveSchedB.ButtonPushedFcn = createCallbackFcn(app, @EP_SaveSchedBPushed, true);
-
-            
-            %  VIEW PATIENT PANEL
-            app.ViewPanel = mkPanel(app.UIFigure, [0 0 W H], 'Local Database Repositories');
-
-            app.VP_Title = uilabel(app.ViewPanel); app.VP_Title.Text = 'Archived Records Registry';
-            app.VP_Title.FontSize = 14; app.VP_Title.FontColor = [0.12 0.45 0.74]; app.VP_Title.Position = [20 500 350 28];
-
-            app.VP_LoadFileBtn = uibutton(app.ViewPanel,'push'); app.VP_LoadFileBtn.Text = 'LOAD PATIENT FILE DATA';
-            app.VP_LoadFileBtn.Position = [20 465 180 28]; app.VP_LoadFileBtn.FontWeight = 'bold';
-            app.VP_LoadFileBtn.ButtonPushedFcn = createCallbackFcn(app, @VP_LoadFileBtnPushed, true);
-
-            app.VP_ListBox = uilistbox(app.ViewPanel); app.VP_ListBox.Items = {};
-            app.VP_ListBox.Position = [20 50 280 380]; app.VP_ListBox.BackgroundColor = [0.97 0.98 0.99];
-            app.VP_ListBox.ValueChangedFcn = createCallbackFcn(app, @VP_ListBoxValueChanged, true);
-
-            app.VP_InfoLabel = uilabel(app.ViewPanel); app.VP_InfoLabel.Text = 'Select profiles to display localized records details.';
-            app.VP_InfoLabel.WordWrap = 'on'; app.VP_InfoLabel.FontSize = 12; app.VP_InfoLabel.Position = [320 50 430 430];
-
-            app.VP_ReturnBtn = uibutton(app.ViewPanel,'push'); app.VP_ReturnBtn.Text = 'RETURN';
-            app.VP_ReturnBtn.Position = [W-120 15 100 28]; app.VP_ReturnBtn.BackgroundColor = [1.00 1.00 1.00];
-            app.VP_ReturnBtn.ButtonPushedFcn = createCallbackFcn(app, @VP_ReturnBtnPushed, true);
+            app.LastActionLabel.Position = [10 10 280 165];
+            app.LastActionLabel.FontSize = 11; app.LastActionLabel.FontColor = [0.15 0.15 0.15];
+            app.LastActionLabel.WordWrap = 'on';
+            app.LastActionLabel.VerticalAlignment = 'top';
 
             %  SCAN & LOAD PANEL
             app.ScanPanel = mkPanel(app.UIFigure, [0 0 W H], 'Optical Automation Module Interface');
 
-            app.SC_Title = uilabel(app.ScanPanel); app.SC_Title.Text = 'Protocol Verification: Optical Barcode Intercept & Compartment Dispatch';
+            app.SC_Title = uilabel(app.ScanPanel);
+            app.SC_Title.Text = 'Barcode Scanner: capture medication barcodes and dispatch reload commands to the ESP32';
             app.SC_Title.FontSize = 12; app.SC_Title.FontColor = [0.12 0.45 0.74]; app.SC_Title.Position = [15 510 700 22];
 
             app.SC_Axes = uiaxes(app.ScanPanel); app.SC_Axes.Position = [15 200 470 295];
             app.SC_Axes.XTick = []; app.SC_Axes.YTick = []; title(app.SC_Axes, 'Optical Sensor Live Capture Stream');
 
             app.SC_CamLabel = uilabel(app.ScanPanel); app.SC_CamLabel.Text = 'Status: Optical Hardware Idle';
-            app.SC_CamLabel.FontSize = 11; app.SC_CamLabel.Position = [15 178 300 18];
+            app.SC_CamLabel.FontSize = 11; app.SC_CamLabel.FontColor = [0.15 0.15 0.15];
+            app.SC_CamLabel.Position = [15 178 300 18];
 
             app.SC_StartBtn = uibutton(app.ScanPanel,'push'); app.SC_StartBtn.Text = 'START SENSOR';
             app.SC_StartBtn.Position = [15 145 140 30]; app.SC_StartBtn.BackgroundColor = [0.12 0.45 0.74];
@@ -814,13 +618,24 @@ classdef MedDispenserApp < matlab.apps.AppBase
             app.SC_StopBtn = uibutton(app.ScanPanel,'push'); app.SC_StopBtn.Text = 'STOP SENSOR';
             app.SC_StopBtn.Position = [165 145 140 30]; app.SC_StopBtn.BackgroundColor = [1.00 1.00 1.00];
             app.SC_StopBtn.FontColor = [0.70 0.20 0.20]; app.SC_StopBtn.FontWeight = 'bold';
-            app.SC_StopBtn.Enable = 'off'; app.SC_StopBtn.ButtonPushedFcn = createCallbackFcn(app, @SC_StopBtnPushed, true);
+            app.SC_StopBtn.Enable = 'off';
+            app.SC_StopBtn.ButtonPushedFcn = createCallbackFcn(app, @SC_StopBtnPushed, true);
 
             serialBox = uipanel(app.ScanPanel); serialBox.Title = 'Hardware Pipeline Link (ESP32 Controller)';
             serialBox.Position = [500 330 260 160]; serialBox.BackgroundColor = [0.97 0.98 0.99];
+            serialBox.FontWeight = 'bold'; serialBox.ForegroundColor = [0.20 0.20 0.20];
+
+            app.SC_ComLbl = uilabel(serialBox); app.SC_ComLbl.Text = 'COM Port:';
+            app.SC_ComLbl.FontSize = 11; app.SC_ComLbl.FontWeight = 'bold';
+            app.SC_ComLbl.FontColor = [0.15 0.15 0.15]; app.SC_ComLbl.Position = [10 110 90 22];
 
             app.SC_ComField = uieditfield(serialBox,'text'); app.SC_ComField.Position = [105 108 140 24];
             app.SC_ComField.Placeholder = 'COM3'; app.SC_ComField.BackgroundColor = [1.00 1.00 1.00];
+
+            app.SC_RefreshBtn = uibutton(serialBox,'push'); app.SC_RefreshBtn.Text = 'REFRESH PORTS';
+            app.SC_RefreshBtn.Position = [10 35 240 28]; app.SC_RefreshBtn.FontWeight = 'bold';
+            app.SC_RefreshBtn.BackgroundColor = [1.00 1.00 1.00]; app.SC_RefreshBtn.FontColor = [0.12 0.45 0.74];
+            app.SC_RefreshBtn.ButtonPushedFcn = createCallbackFcn(app, @SC_RefreshBtnPushed, true);
 
             app.SC_ConnectBtn = uibutton(serialBox,'push'); app.SC_ConnectBtn.Text = 'LINK INTERFACE';
             app.SC_ConnectBtn.Position = [10 70 115 28]; app.SC_ConnectBtn.FontWeight = 'bold';
@@ -832,17 +647,20 @@ classdef MedDispenserApp < matlab.apps.AppBase
 
             infoBox = uipanel(app.ScanPanel); infoBox.Title = 'Decoded Stream Telemetry';
             infoBox.Position = [500 150 260 170]; infoBox.BackgroundColor = [0.97 0.98 0.99];
+            infoBox.FontWeight = 'bold'; infoBox.ForegroundColor = [0.20 0.20 0.20];
 
             app.SC_BarcodeLabel = uilabel(infoBox); app.SC_BarcodeLabel.Text = 'Barcode Matrix: Null';
-            app.SC_BarcodeLabel.WordWrap = 'on'; app.SC_BarcodeLabel.Position = [8 110 240 28];
+            app.SC_BarcodeLabel.WordWrap = 'on'; app.SC_BarcodeLabel.FontColor = [0.15 0.15 0.15];
+            app.SC_BarcodeLabel.Position = [8 110 240 28];
 
             app.SC_CommandLabel = uilabel(infoBox); app.SC_CommandLabel.Text = 'Parsed Core Directive: Null';
-            app.SC_CommandLabel.WordWrap = 'on'; app.SC_CommandLabel.Position = [8 75 240 28];
+            app.SC_CommandLabel.WordWrap = 'on'; app.SC_CommandLabel.FontColor = [0.15 0.15 0.15];
+            app.SC_CommandLabel.Position = [8 75 240 28];
 
             app.SC_SendLabel = uilabel(infoBox); app.SC_SendLabel.Text = 'Serial Channel Activity Log: Null';
-            app.SC_SendLabel.WordWrap = 'on'; app.SC_SendLabel.FontSize = 10; app.SC_SendLabel.Position = [8 10 240 56];
+            app.SC_SendLabel.WordWrap = 'on'; app.SC_SendLabel.FontSize = 10;
+            app.SC_SendLabel.FontColor = [0.15 0.15 0.15]; app.SC_SendLabel.Position = [8 10 240 56];
 
-            % Extra Mile: UI Error Recovery Button Trigger
             app.SC_RecoveryBtn = uibutton(app.ScanPanel, 'push');
             app.SC_RecoveryBtn.Text = 'FORCE HARDWARE PIPELINE RECOVERY';
             app.SC_RecoveryBtn.Position = [500 100 260 30];
@@ -852,23 +670,14 @@ classdef MedDispenserApp < matlab.apps.AppBase
 
             app.SC_ReturnBtn = uibutton(app.ScanPanel,'push'); app.SC_ReturnBtn.Text = 'RETURN';
             app.SC_ReturnBtn.Position = [W-120 15 100 28]; app.SC_ReturnBtn.BackgroundColor = [1.00 1.00 1.00];
+            app.SC_ReturnBtn.FontColor = [0.15 0.15 0.15];
             app.SC_ReturnBtn.ButtonPushedFcn = createCallbackFcn(app, @SC_ReturnBtnPushed, true);
 
             app.UIFigure.Visible = 'on';
         end
-
-        function cbs = buildHourCheckboxes(~, parentTab, hours)
-            cbs = {}; colBreak = 12;
-            for k = 1:numel(hours)
-                h = hours(k); col = (k > colBreak); row = mod(k-1, colBreak);
-                x = 20 + col * 160; y = 340 - row * 24;
-                cb = uicheckbox(parentTab); cb.Text = sprintf('%02d:00 Hours', h);
-                cb.Position = [x y 120 20]; cbs{end+1} = cb; %#ok<AGROW>
-            end
-        end
     end
 
-    %  APP LIFECYCLE 
+    %  APP LIFECYCLE
     methods (Access = public)
         function app = MedDispenserApp
             createComponents(app)
@@ -879,13 +688,10 @@ classdef MedDispenserApp < matlab.apps.AppBase
 
         function delete(app)
             stopCamera(app);
-            if ~isempty(app.SerialObj), delete(app.SerialObj); end
+            if ~isempty(app.SerialObj) && isvalid(app.SerialObj)
+                delete(app.SerialObj);
+            end
             delete(app.UIFigure)
         end
     end
-end
-
-%  MODULE-LEVEL HELPERS 
-function txt = formatSchedule(cellArr)
-    if isempty(cellArr), txt = 'No periods programmed'; else, txt = strjoin(cellArr, '  |  '); end
 end
